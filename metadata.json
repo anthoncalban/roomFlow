@@ -1,0 +1,5 @@
+{
+  "name": "RoomFlow: Facility Usage & Analytics",
+  "description": "A comprehensive room usage tracking and analytics platform with QR scanning, role-based access, and detailed semester-based reporting.",
+  "requestFramePermissions": ["camera"]
+}

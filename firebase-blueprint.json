@@ -1,0 +1,81 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Application user with role-based access.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["Professor", "Administrator", "Facility Manager"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Room": {
+      "title": "Room",
+      "description": "Physical facility or classroom.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "building": { "type": "string" },
+        "capacity": { "type": "integer" }
+      },
+      "required": ["id", "name"]
+    },
+    "Schedule": {
+      "title": "Schedule",
+      "description": "Semester-based subject schedule for a room.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "roomId": { "type": "string" },
+        "subject": { "type": "string" },
+        "instructorId": { "type": "string" },
+        "dayOfWeek": { "type": "integer", "description": "0-6 (Sunday-Saturday)" },
+        "startTime": { "type": "string", "description": "HH:mm" },
+        "endTime": { "type": "string", "description": "HH:mm" },
+        "semester": { "type": "string", "enum": ["Spring", "Summer", "Fall"] },
+        "year": { "type": "integer" }
+      },
+      "required": ["roomId", "subject", "dayOfWeek", "startTime", "endTime", "semester", "year"]
+    },
+    "UsageLog": {
+      "title": "UsageLog",
+      "description": "Log entry for room entry/exit.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "roomId": { "type": "string" },
+        "userId": { "type": "string" },
+        "subjectId": { "type": "string", "description": "Optional link to schedule" },
+        "entryTime": { "type": "string", "format": "date-time" },
+        "exitTime": { "type": "string", "format": "date-time" },
+        "durationMinutes": { "type": "integer" },
+        "semester": { "type": "string" },
+        "year": { "type": "integer" }
+      },
+      "required": ["roomId", "userId", "entryTime"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profiles and roles."
+    },
+    "rooms/{roomId}": {
+      "schema": "Room",
+      "description": "List of rooms."
+    },
+    "schedules/{scheduleId}": {
+      "schema": "Schedule",
+      "description": "Semester schedules."
+    },
+    "usageLogs/{logId}": {
+      "schema": "UsageLog",
+      "description": "Room usage history."
+    }
+  }
+}
