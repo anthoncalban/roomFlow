@@ -2,7 +2,6 @@
 A Progressive Web App (PWA) for managing classroom and meeting room reservations at NEU. Built with React, TypeScript, Firebase, and Firestore, RoomFlow streamlines room scheduling, professor check-ins, and admin oversight.  
 
 🔗 **Live deployed link:** [room-flow-seven.vercel.app](https://room-flow-seven.vercel.app/)  
-📂 **GitHub Repository:** [github.com/anthoncalban/roomFlow](https://github.com/anthoncalban/roomFlow)  
 
 ---
 
