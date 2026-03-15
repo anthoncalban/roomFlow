@@ -30,31 +30,6 @@ A Progressive Web App (PWA) for managing classroom and meeting room reservations
 
 ---
 
-## 📂 Project Structure
-roomFlow/
-│
-├── src/
-│   ├── App.tsx                 ← Main app component
-│   ├── main.tsx                ← Entry point
-│   ├── firebase.ts             ← Firebase config & init
-│   ├── types.ts                ← TypeScript types
-│   └── index.css               ← Global styles
-│
-├── firestore.rules             ← Firestore security rules
-├── firebase-applet-config.json ← Firebase applet config
-├── firebase-blueprint.json     ← Firebase blueprint config
-├── metadata.json               ← Project metadata
-│
-├── package.json                ← Dependencies
-├── package-lock.json           ← Dependency lock
-├── tsconfig.json               ← TypeScript config
-├── vite.config.ts              ← Vite build config
-├── .env.example                ← Environment variables template
-└── .gitignore                  ← Git ignore rules
-
-
----
-
 ## 🔄 Application Flows
 
 ### 1. Authentication & Onboarding Flow
