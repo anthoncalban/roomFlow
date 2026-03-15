@@ -91,11 +91,11 @@ Open http://localhost:5173 in your browser.
 
 Deploy via Vercel or Firebase Hosting.
 
-PWA Installation
+## PWA Installation
 Android (Chrome): Open app → Add to Home Screen → Install
 
 iOS (Safari): Open app → Share → Add to Home Screen → Install
 
-⚖️ License
+## ⚖️ License
 Academic Integrity & Copyright Notice
 This project was developed for academic purposes at NEU. Unauthorized copying, adaptation, distribution, or commercial use is strictly prohibited.
