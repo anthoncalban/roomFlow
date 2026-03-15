@@ -34,6 +34,10 @@ service cloud.firestore {
       );
     }
 
+    function isInitialAdmin(data) {
+      return data.email == "anthonvan.calban@neu.edu.ph";
+    }
+
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'email', 'role']) &&
              data.uid is string &&
@@ -45,7 +49,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
       allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && 
-                    (request.resource.data.role == 'Professor' || isAdmin());
+                    (request.resource.data.role == 'Professor' || isAdmin() || isInitialAdmin(request.resource.data));
       allow update: if isAuthenticated() && (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data) &&
                     (request.resource.data.role == resource.data.role || isAdmin());
     }

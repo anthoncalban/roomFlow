@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   onAuthStateChanged, 
-  signInWithPopup, 
+  signInAnonymously, 
   signOut, 
   User as FirebaseUser 
 } from 'firebase/auth';
@@ -22,7 +22,7 @@ import {
   addDoc, 
   updateDoc
 } from 'firebase/firestore';
-import { auth, db, googleProvider } from './firebase';
+import { auth, db } from './firebase';
 import { 
   UserProfile, 
   Room, 
@@ -65,6 +65,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 import { QRCodeSVG } from 'qrcode.react';
+import { motion } from 'motion/react';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -161,6 +162,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'scanner' | 'history' | 'management'>('dashboard');
   const [pendingRoomId, setPendingRoomId] = useState<string | null>(null);
   const [loginScanning, setLoginScanning] = useState(false);
+  const [emailInput, setEmailInput] = useState('');
+  const [emailError, setEmailError] = useState<string | null>(null);
   
   // Data State
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -198,27 +201,13 @@ export default function App() {
         setUser(firebaseUser);
         try {
           const profileDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-          let currentProfile: UserProfile;
           if (profileDoc.exists()) {
-            currentProfile = profileDoc.data() as UserProfile;
-            setProfile(currentProfile);
-          } else {
-            const isAdmin = firebaseUser.email === 'anthonvan.calban@neu.edu.ph';
-            currentProfile = {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email || '',
-              displayName: firebaseUser.displayName || 'User',
-              role: isAdmin ? 'Administrator' : 'Professor',
-              createdAt: new Date().toISOString(),
-            };
-            await setDoc(doc(db, 'users', firebaseUser.uid), currentProfile);
-            setProfile(currentProfile);
+            setProfile(profileDoc.data() as UserProfile);
           }
-
-          // Handle pending room scan after login
+          // Note: Profile creation is handled in handleSignIn for new anonymous users
+          
           if (pendingRoomId) {
             setActiveTab('scanner');
-            // The scanner view will handle the rest if we pass the pending ID
           }
         } catch (error) {
           handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}`);
@@ -293,10 +282,44 @@ export default function App() {
   }, [user, activeSemester, activeYear]);
 
   const handleSignIn = async () => {
+    if (!emailInput) {
+      setEmailError('Please enter your institutional email.');
+      return;
+    }
+    if (!emailInput.endsWith('@neu.edu.ph')) {
+      setEmailError('Please use your @neu.edu.ph email address.');
+      return;
+    }
+    setEmailError(null);
+
     try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error) {
+      const result = await signInAnonymously(auth);
+      const firebaseUser = result.user;
+      
+      // Create or update profile immediately
+      const profileDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+      if (!profileDoc.exists()) {
+        const isAdmin = emailInput === 'anthonvan.calban@neu.edu.ph';
+        const newProfile: UserProfile = {
+          uid: firebaseUser.uid,
+          email: emailInput,
+          displayName: emailInput.split('@')[0],
+          role: isAdmin ? 'Administrator' : 'Professor',
+          createdAt: new Date().toISOString(),
+        };
+        await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
+        setProfile(newProfile);
+      } else {
+        // Update email if it changed (though unlikely for same UID)
+        await updateDoc(doc(db, 'users', firebaseUser.uid), { email: emailInput });
+      }
+    } catch (error: any) {
       console.error('Sign in error:', error);
+      if (error.code === 'auth/admin-restricted-operation') {
+        setEmailError('Anonymous Authentication is disabled in Firebase. Please enable it in the Firebase Console (Authentication > Sign-in method).');
+      } else {
+        setEmailError('Failed to sign in. Please try again.');
+      }
     }
   };
 
@@ -338,7 +361,58 @@ export default function App() {
             </div>
 
             <Card className="p-10 shadow-2xl border-0 bg-white ring-1 ring-zinc-100 rounded-[2.5rem] space-y-8">
-              <div className="space-y-4">
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase tracking-widest text-zinc-400 ml-1">
+                    Institutional Email
+                  </label>
+                  <Input 
+                    type="email" 
+                    placeholder="name@neu.edu.ph" 
+                    value={emailInput}
+                    onChange={(e) => {
+                      setEmailInput(e.target.value);
+                      if (emailError) setEmailError(null);
+                    }}
+                    className={cn(
+                      "py-7 text-lg rounded-2xl border-2 transition-all",
+                      emailError ? "border-red-200 bg-red-50" : "border-zinc-100 focus:border-zinc-900"
+                    )}
+                  />
+                  {emailError && (
+                    <div className="space-y-3">
+                      <p className="text-xs font-bold text-red-500 ml-1 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {emailError}
+                      </p>
+                      {emailError.includes('Anonymous Authentication') && (
+                        <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 space-y-2">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-amber-800">Quick Fix Required:</p>
+                          <ol className="text-[10px] text-amber-700 space-y-1 list-decimal ml-4 font-medium">
+                            <li>Open <a href="https://console.firebase.google.com/" target="_blank" className="underline font-bold">Firebase Console</a></li>
+                            <li>Go to <b>Authentication</b> &gt; <b>Sign-in method</b></li>
+                            <li>Click <b>Add new provider</b> &gt; <b>Anonymous</b></li>
+                            <li>Toggle <b>Enable</b> and click <b>Save</b></li>
+                          </ol>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-4 pt-2">
+                  <Button onClick={handleSignIn} className="w-full py-8 text-2xl font-black shadow-xl hover:scale-[1.02] active:scale-95 transition-all h-auto rounded-2xl bg-black text-white">
+                    Continue to Sign In
+                  </Button>
+                  <div className="flex items-center justify-center gap-2 text-xs text-zinc-400 uppercase tracking-[0.2em] font-black">
+                    <div className="h-[1px] w-8 bg-zinc-200" />
+                    No Password Required
+                    <div className="h-[1px] w-8 bg-zinc-200" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-zinc-50">
                 {pendingRoomId ? (
                   <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-6 py-3 text-sm font-bold text-emerald-700 border border-emerald-100 shadow-sm">
                     <CheckCircle2 className="h-4 w-4" />
@@ -366,16 +440,6 @@ export default function App() {
                 )}
               </div>
 
-              <div className="space-y-4 pt-4">
-                <Button onClick={handleSignIn} className="w-full py-8 text-2xl font-black shadow-xl hover:scale-[1.02] active:scale-95 transition-all h-auto rounded-2xl bg-black text-white">
-                  Sign in with Google
-                </Button>
-                <div className="flex items-center justify-center gap-2 text-xs text-zinc-400 uppercase tracking-[0.2em] font-black">
-                  <div className="h-[1px] w-8 bg-zinc-200" />
-                  Authorized Personnel Only
-                  <div className="h-[1px] w-8 bg-zinc-200" />
-                </div>
-              </div>
             </Card>
 
             <div className="flex justify-center gap-8 text-[10px] font-black uppercase tracking-[0.3em] text-zinc-300">
@@ -410,6 +474,12 @@ export default function App() {
               label="Scanner" 
               active={activeTab === 'scanner'} 
               onClick={() => setActiveTab('scanner')} 
+            />
+            <NavItem 
+              icon={<DoorOpen className="h-5 w-5" />} 
+              label="Rooms" 
+              active={activeTab === 'rooms'} 
+              onClick={() => setActiveTab('rooms')} 
             />
             <NavItem 
               icon={<History className="h-5 w-5" />} 
@@ -465,6 +535,7 @@ export default function App() {
         </header>
 
         {activeTab === 'dashboard' && <DashboardView rooms={rooms} logs={logs} schedules={schedules} />}
+        {activeTab === 'rooms' && <RoomsView rooms={rooms} />}
         {activeTab === 'scanner' && (
           <ScannerView 
             rooms={rooms} 
@@ -778,6 +849,90 @@ function ScannerView({
   );
 }
 
+function RoomsView({ rooms }: { rooms: Room[] }) {
+  const [viewingQR, setViewingQR] = useState<Room | null>(null);
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-6 md:grid-cols-3">
+        {rooms.map(room => (
+          <Card key={room.id} className="group relative overflow-hidden p-0">
+            <div className="p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="rounded-xl bg-zinc-100 p-3 group-hover:bg-zinc-900 group-hover:text-white transition-colors">
+                  <DoorOpen className="h-6 w-6" />
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="rounded-full hover:bg-zinc-100"
+                  onClick={() => setViewingQR(room)}
+                >
+                  <QrCode className="h-5 w-5" />
+                </Button>
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-xl font-bold tracking-tight">{room.name}</h4>
+                <p className="text-sm text-zinc-500">{room.building} Building</p>
+              </div>
+              <div className="mt-6 flex items-center gap-4 text-xs font-medium text-zinc-400">
+                <div className="flex items-center gap-1">
+                  <Users className="h-3 w-3" />
+                  {room.capacity} Seats
+                </div>
+                <div className="h-3 w-[1px] bg-zinc-200" />
+                <div className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  Available
+                </div>
+              </div>
+            </div>
+            <div className="bg-zinc-50 px-6 py-3 border-t border-zinc-100 flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Facility ID: {room.id.slice(0, 8)}</span>
+              <ChevronRight className="h-4 w-4 text-zinc-300" />
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {viewingQR && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="w-full max-w-sm"
+          >
+            <Card className="text-center space-y-6 shadow-2xl border-0">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold">Room QR Code</h3>
+                <button onClick={() => setViewingQR(null)} className="text-zinc-400 hover:text-zinc-900 p-1">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="p-8 bg-white rounded-3xl border-2 border-zinc-100 shadow-inner flex justify-center">
+                <QRCodeSVG value={viewingQR.id} size={240} level="H" includeMargin={true} />
+              </div>
+              <div className="space-y-1">
+                <p className="text-2xl font-black tracking-tight">{viewingQR.name}</p>
+                <p className="text-sm text-zinc-500 font-medium">{viewingQR.building} Building • Facility Access</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Button onClick={() => window.print()} variant="outline" className="gap-2 rounded-xl">
+                  <Download className="h-4 w-4" />
+                  Print
+                </Button>
+                <Button onClick={() => setViewingQR(null)} className="bg-black text-white hover:bg-zinc-800 rounded-xl">
+                  Close
+                </Button>
+              </div>
+            </Card>
+          </motion.div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function HistoryView({ logs, rooms, schedules }: { logs: UsageLog[]; rooms: Room[]; schedules: Schedule[] }) {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -876,7 +1031,6 @@ function HistoryView({ logs, rooms, schedules }: { logs: UsageLog[]; rooms: Room
 function ManagementView({ rooms, schedules }: { rooms: Room[]; schedules: Schedule[] }) {
   const [showAddRoom, setShowAddRoom] = useState(false);
   const [newRoom, setNewRoom] = useState({ name: '', building: '', capacity: 30 });
-  const [viewingQR, setViewingQR] = useState<Room | null>(null);
 
   const handleAddRoom = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -894,36 +1048,12 @@ function ManagementView({ rooms, schedules }: { rooms: Room[]; schedules: Schedu
     <div className="grid gap-8 md:grid-cols-2">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Rooms</h3>
+          <h3 className="text-lg font-semibold">Room Management</h3>
           <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowAddRoom(!showAddRoom)}>
             <Plus className="h-4 w-4" />
             Add Room
           </Button>
         </div>
-
-        {viewingQR && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-            <Card className="w-full max-w-sm text-center space-y-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-bold">Room QR Code</h3>
-                <button onClick={() => setViewingQR(null)} className="text-zinc-400 hover:text-zinc-900">
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <div className="p-8 bg-white rounded-2xl border border-zinc-100 shadow-inner flex justify-center">
-                <QRCodeSVG value={viewingQR.id} size={200} level="H" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-2xl font-black">{viewingQR.name}</p>
-                <p className="text-sm text-zinc-500">{viewingQR.building} Building</p>
-              </div>
-              <Button onClick={() => window.print()} variant="outline" className="w-full gap-2">
-                <Download className="h-4 w-4" />
-                Print QR Code
-              </Button>
-            </Card>
-          </div>
-        )}
 
         {showAddRoom && (
           <Card className="space-y-4">
@@ -978,9 +1108,7 @@ function ManagementView({ rooms, schedules }: { rooms: Room[]; schedules: Schedu
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setViewingQR(room)}>
-                  <QrCode className="h-4 w-4" />
-                </Button>
+                <span className="text-[10px] font-mono text-zinc-400">{room.id.slice(0, 8)}</span>
                 <ChevronRight className="h-4 w-4 text-zinc-300" />
               </div>
             </Card>
